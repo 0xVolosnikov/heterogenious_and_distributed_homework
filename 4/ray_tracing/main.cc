@@ -121,7 +121,7 @@ void ray_tracing_gpu(OpenCL& opencl) {
     using std::chrono::duration_cast;
     using std::chrono::seconds;
     using std::chrono::microseconds;
-    int nx = 1024, ny = 720, nrays = 100;
+    int nx = 1920, ny = 1080, nrays = 100;
     Pixel_matrix<float> pixels(nx,ny);
     thx::screen_recorder recorder("out.ogv", nx,ny);
     std::vector<Sphere> objects = {
@@ -315,7 +315,7 @@ float3 trace(Ray r, int objects_num, global float* objects, global float* distr,
         if (hit.t > 1e-3f) {
             r.origin = hit.point;
             r.direction = hit.normal; 
-            float3 rnd = random_in_unit_sphere(distr, distr_size, depth*ray_num + r.direction.x*9568 + 100); 
+            float3 rnd = random_in_unit_sphere(distr, distr_size, depth*ray_num + r.direction.y*9568 + 100); 
             rnd = normalize(rnd);
             r.direction += rnd; // scatter
             r.direction = normalize(r.direction);
@@ -360,8 +360,8 @@ kernel void ray_trace(
         
         float3 sum = (float3)(0.f, 0.f, 0.f);
         for (int k=0; k<nrays; ++k) {
-            float u = (float)(x + distribution[(100*(i+k) + x + nrays)%distr_size]) / nx;
-            float v = (float)(y + distribution[(100*(i+k) + y + 1 + nrays)%distr_size]) / ny;
+            float u = (float)(x + distribution[(2*(i+k) + x + nrays)%distr_size]) / nx;
+            float v = (float)(y + distribution[(2*(i+k) + y + 1 + nrays)%distr_size]) / ny;
             Ray ray = make_ray(u, v, camera_origin_p, camera_ll_corner_p, camera_horizontal_p, camera_vertical_p);
             sum += trace(ray, objects_num, objects, distribution, distr_size, k);
         }
