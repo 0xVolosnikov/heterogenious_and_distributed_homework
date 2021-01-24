@@ -70,7 +70,7 @@ void ray_tracing_cpu() {
     using std::chrono::duration_cast;
     using std::chrono::seconds;
     using std::chrono::microseconds;
-    int nx = 600, ny = 400, nrays = 100;
+    int nx = 800, ny = 600, nrays = 100;
     Pixel_matrix<float> pixels(nx,ny);
     thx::screen_recorder recorder("out.ogv", nx,ny);
     Object_group objects;
@@ -260,10 +260,10 @@ float3 random_in_unit_sphere(global float* distribution, int distr_size, int see
 
     float3 randvec;
     distr_size = (1<<20);
-    randvec.x = (distribution[(seed_l+0) % distr_size]*2 - distribution[(seed_l+1) % distr_size])/4000.f;
-    randvec.y = (distribution[(seed_l+2) % distr_size]*2 - distribution[(seed_l+3) % distr_size])/4000.f;
-    randvec.z = (distribution[(seed_l+4) % distr_size]*2 - distribution[(seed_l+5) % distr_size])/4000.f;
-    randvec += 0.001f;
+    randvec.x =  distribution[(seed_l) % distr_size]/4000.f; //(distribution[(seed_l+0) % distr_size]*2 - distribution[(seed_l+1) % distr_size])/4000.f;
+    randvec.y =  distribution[(seed_l+1) % distr_size]/4000.f; //(distribution[(seed_l+2) % distr_size]*2 - distribution[(seed_l+3) % distr_size])/4000.f;
+    randvec.z =  distribution[(seed_l+3) % distr_size]/4000.f; //(distribution[(seed_l+4) % distr_size]*2 - distribution[(seed_l+5) % distr_size])/4000.f;
+    //randvec += 0.001f;
     return randvec;
 }
 
