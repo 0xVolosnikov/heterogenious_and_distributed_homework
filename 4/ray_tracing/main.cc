@@ -317,8 +317,8 @@ float3 trace(Ray r, int objects_num, global float* objects, global float* distr,
             r.direction = hit.normal; 
             float3 rnd = random_in_unit_sphere(distr, distr_size, depth*ray_num + r.direction.x*9568 + 100); 
             rnd = normalize(rnd);
-            //r.direction += rnd; // scatter
-            //r.direction = normalize(r.direction);
+            r.direction += rnd; // scatter
+            r.direction = normalize(r.direction);
             factor *= 0.5f; // diffuse 50% of light, scatter the remaining
         } else {
             break;
