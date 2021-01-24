@@ -160,7 +160,7 @@ void ray_tracing_gpu(OpenCL& opencl) {
     std::normal_distribution<float> dist(0.f,1.f);
     int distr_size = 1<<24;
     std::vector<float> distr;
-    distr.reserve(distr_size);
+    //distr.reserve(distr_size);
 
     //#pragma omp parallel for
     for (int i = 0; i < distr_size; i++) {
