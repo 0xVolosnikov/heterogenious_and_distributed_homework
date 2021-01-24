@@ -71,6 +71,7 @@ void ray_tracing_cpu() {
     using std::chrono::seconds;
     using std::chrono::microseconds;
     int nx = 800, ny = 600, nrays = 100;
+    
     Pixel_matrix<float> pixels(nx,ny);
     thx::screen_recorder recorder("out.ogv", nx,ny);
     Object_group objects;
