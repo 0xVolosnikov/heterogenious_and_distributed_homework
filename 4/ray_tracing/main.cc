@@ -121,7 +121,7 @@ void ray_tracing_gpu(OpenCL& opencl) {
     using std::chrono::duration_cast;
     using std::chrono::seconds;
     using std::chrono::microseconds;
-    int nx = 600, ny = 400, nrays = 100;
+    int nx = 1024, ny = 720, nrays = 100;
     Pixel_matrix<float> pixels(nx,ny);
     thx::screen_recorder recorder("out.ogv", nx,ny);
     std::vector<Sphere> objects = {
