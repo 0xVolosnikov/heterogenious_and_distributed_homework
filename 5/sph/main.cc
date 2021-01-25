@@ -129,7 +129,6 @@ void generate_particles_OpenCl() {
     std::clog << "No. of particles: " << particles_GPU.count << std::endl;
 
     buffers.positions_buf = cl::Buffer(opencl.context, begin(particles_GPU.positions_plain), end(particles_GPU.positions_plain), true);
-
     int buf_size = particles_GPU.count*sizeof(cl_float);
     buffers.velocities_buf = cl::Buffer(opencl.context, CL_MEM_READ_WRITE, 2*buf_size);
     buffers.forces_buf = cl::Buffer(opencl.context, CL_MEM_READ_WRITE, 2*buf_size);
@@ -293,9 +292,8 @@ void on_idle_gpu() {
     opencl.queue.enqueueNDRangeKernel(positions_kernel, cl::NullRange, cl::NDRange(count), cl::NullRange);
     opencl.queue.flush();
     
-    opencl.queue.enqueueReadBuffer(buffers.positions_buf, true, 0, 2*count*sizeof(cl_float), particles_GPU.positions_plain.data());
-
     auto t1 = clock_type::now();
+    opencl.queue.enqueueReadBuffer(buffers.positions_buf, true, 0, 2*count*sizeof(cl_float), particles_GPU.positions_plain.data());
     auto dt = duration_cast<float_duration>(t1-t0).count();
     std::clog
         << std::setw(20) << dt
@@ -460,7 +458,7 @@ void do_gpu_staff() {
             throw;
         }
         cl::CommandQueue queue(context, device);
-        opencl = {platform, device, context, program, queue};
+        opencl = OpenCL{platform, device, context, program, queue};
         
 
     } catch (const cl::Error& err) {
@@ -491,7 +489,7 @@ int main(int argc, char* argv[]) {
     glutReshapeFunc(on_reshape);
     switch (version) {
         case Version::CPU: glutIdleFunc(on_idle_cpu); break;
-        case Version::GPU: glutIdleFunc(on_idle_gpu); break;
+        case Version::GPU: do_gpu_staff(); glutIdleFunc(on_idle_gpu); break;
         default: return 1;
     }
 	glutKeyboardFunc(on_keyboard);
