@@ -16,6 +16,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <math.h> 
 
 #include "linear-algebra.hh"
 
@@ -146,7 +147,7 @@ void profile_matrix_times_matrix(int n, OpenCL& opencl) {
     cl::Buffer d_b(opencl.queue, begin(b), end(b), true);
 
     cl::Buffer d_result(opencl.context, CL_MEM_WRITE_ONLY, result.size()*sizeof(float));
-    int block_size = 32;
+    int block_size = sqrt(opencl.device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>());
 
     while ((n*n) % (block_size*block_size) != 0) {
        block_size--;
