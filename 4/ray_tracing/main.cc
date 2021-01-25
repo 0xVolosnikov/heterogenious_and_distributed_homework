@@ -122,7 +122,7 @@ void ray_tracing_gpu(OpenCL& opencl) {
     using std::chrono::duration_cast;
     using std::chrono::seconds;
     using std::chrono::microseconds;
-    int nx = 1920, ny = 1080, nrays = 100;
+    int nx = 800, ny = 600, nrays = 100;
     Pixel_matrix<float> pixels(nx,ny);
     thx::screen_recorder recorder("out.ogv", nx,ny);
     std::vector<Sphere> objects = {
@@ -257,14 +257,16 @@ struct Object {
 typedef struct Object Object;
 
 float3 random_in_unit_sphere(global float* distribution, int distr_size, int seed ) {
-    int seed_l = ((get_global_id(0) + get_global_id(1)*800)*90 + seed*3);
+    int seed_l = (get_global_id(0)*10 + get_global_id(1)*10) + seed*3;
 
-    float3 randvec;
-    distr_size = (1<<20);
-    randvec.x =  distribution[(seed_l) % distr_size]/4000.f; //(distribution[(seed_l+0) % distr_size]*2 - distribution[(seed_l+1) % distr_size])/4000.f;
-    randvec.y =  distribution[(seed_l+1) % distr_size]/4000.f; //(distribution[(seed_l+2) % distr_size]*2 - distribution[(seed_l+3) % distr_size])/4000.f;
-    randvec.z =  distribution[(seed_l+3) % distr_size]/4000.f; //(distribution[(seed_l+4) % distr_size]*2 - distribution[(seed_l+5) % distr_size])/4000.f;
-    //randvec += 0.001f;
+    float3 randvec = (float3)(0.f, 0.f, 0.f);
+    float eta = 2.f*(M_PI)*distribution[(seed_l) % distr_size];
+    // idk why, but acos is weird
+    float phi = (distribution[(seed_l+1) % distr_size] - distribution[(seed_l+2) % distr_size])*(M_PI_2); //acos(2.f*distribution[(seed_l+1) % distr_size] - 1.f) - (pi/2.f); 
+
+    randvec.x =  cos(eta)*cos(eta);
+    randvec.y = cos(phi)*sin(eta);
+    randvec.z = sin(phi);
     return randvec;
 }
 
@@ -278,6 +280,8 @@ Ray make_ray(float u, float v, float3 camera_origin, float3 camera_ll_corner, fl
 Hit get_hit(Ray r, float t_min, float t_max, int objects_num, global float* objects) {
     Hit result;
     result.t = -1.f;
+    result.point = (float3)(0.f, 0.f, 0.f);
+    result.normal = (float3)(0.f, 0.f, 0.f);
     for (int i = 0; i < objects_num; i++) {
         float3 center = (float3)(objects[i*4], objects[i*4 + 1], objects[i*4 + 2]);
         float radius = objects[i*4 + 3];
@@ -297,7 +301,7 @@ Hit get_hit(Ray r, float t_min, float t_max, int objects_num, global float* obje
                 t = (-b + d)/a;
                 if (t_min < t && t < t_max) { success = true; }
             }
-            if (success && (result.t < 0 || result.t > t)) {
+            if (success && (result.t <= 0 || result.t > t)) {
                 result.t = t;
                 result.point = r.origin + t*r.direction;
                 result.normal = (result.point - center) / radius;
@@ -310,16 +314,16 @@ Hit get_hit(Ray r, float t_min, float t_max, int objects_num, global float* obje
 float3 trace(Ray r, int objects_num, global float* objects, global float* distr, float distr_size, int ray_num) {
     float factor = 1;
     const int max_depth = 50;
-    int depth=0;
+    int depth = 0;
     for (; depth<max_depth; ++depth) {
         Hit hit = get_hit(r, 1e-3f, FLT_MAX, objects_num, objects);
         if (hit.t > 1e-3f) {
             r.origin = hit.point;
             r.direction = hit.normal; 
-            float3 rnd = random_in_unit_sphere(distr, distr_size, depth*ray_num + r.direction.y*9568 + 100); 
-            rnd = normalize(rnd);
+            float3 rnd = random_in_unit_sphere(distr, distr_size, 100*depth + 10*ray_num); 
+            //rnd = normalize(rnd);
             r.direction += rnd; // scatter
-            r.direction = normalize(r.direction);
+            //r.direction = normalize(r.direction);
             factor *= 0.5f; // diffuse 50% of light, scatter the remaining
         } else {
             break;
@@ -328,7 +332,7 @@ float3 trace(Ray r, int objects_num, global float* objects, global float* distr,
     //if (depth == max_depth) { return vec{}; }
     // nothing was hit
     // represent sky as linear gradient in Y dimension
-    r.direction = normalize(r.direction);
+    r.direction /= length(r.direction);
     float t = 0.5f*(r.direction.y + 1.0f);
     return factor*((1.0f-t)*(float3)(1.0f, 1.0f, 1.0f) + t*(float3)(0.5f, 0.7f, 1.0f));
 }
