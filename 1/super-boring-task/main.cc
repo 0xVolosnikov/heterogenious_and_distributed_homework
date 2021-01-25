@@ -111,11 +111,16 @@ void profile_matrix_times_vector(int n, OpenCL& opencl) {
     kernel.setArg(1, d_b);
     kernel.setArg(2, d_result);
     kernel.setArg(3, n);
-    kernel.setArg(4, n*sizeof(float), NULL);
 
+    int wg_size = 128;
+    while (n % block_size != 0) {
+       wg_size--;
+    }
+    kernel.setArg(4, wg_size*sizeof(float), NULL);
     opencl.queue.finish();
+
     auto t2 = clock_type::now();
-    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n), cl::NDRange(1024));
+    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n), cl::NDRange(wg_size));
     opencl.queue.finish();
     auto t3 = clock_type::now();
     cl::copy(opencl.queue, d_result, begin(result), end(result));
@@ -187,23 +192,31 @@ kernel void vector_times_vector(global float* a,
 kernel void matrix_times_vector(global float* a,
                                 constant float* b,
                                 global float* result,
-			        int n,
-				local float* loc_b) {
-    const int i = get_global_id(0);
-    const int loc_size = get_local_size(0);
+                                int n,
+                                local float* loc_res) {
+    int count_of_groups = get_num_groups(0);
+    int local_size = get_local_size(0);
+    int local_id = get_local_id(0);
+    int g_id = get_group_id(0);
 
-    //local float loc_b[1024*10];
-    const int local_id = get_local_id(0);
-    for (int k = 0; k < n; k++) {
-         loc_b[k] = b[k];
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    for (int i = g_id; i < n; i += count_of_groups) {
+        float sum = 0.f;
+        for (int j = local_id; j < n; j += local_size)
+            sum += a[i*n + j] * b[j];
 
-    float sum = 0.0f;
-    for (int column = 0; column < n; column++) {
-	sum += a[i*n + column]*loc_b[column];
+        loc_res[local_id] = sum;
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        if (local_id == 0) {
+            float d_p = 0;
+            for (int t = 0; t < local_size; ++t)
+                d_p += loc_res[t];
+            result[i] = d_p;
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
-    result[i] = sum;
 }
 
 kernel void matrix_times_matrix(global float* a,
