@@ -106,14 +106,16 @@ void profile_matrix_times_vector(int n, OpenCL& opencl) {
     cl::Buffer d_a(opencl.queue, begin(a), end(a), true);
     cl::Buffer d_b(opencl.queue, begin(b), end(b), true);
     cl::Buffer d_result(opencl.context, CL_MEM_WRITE_ONLY, result.size()*sizeof(float));
-    
+    int block_size = 16;
     kernel.setArg(0, d_a);
     kernel.setArg(1, d_b);
     kernel.setArg(2, d_result);
     kernel.setArg(3, n);
+    kernel.setArg(4, block_size*block_size*sizeof(float), NULL);
+    kernel.setArg(5, block_size*block_size*sizeof(float), NULL);
     opencl.queue.finish();
     auto t2 = clock_type::now();
-    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n), cl::NDRange(1024));
+    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n, n), cl::NDRange(block_size, block_size));
     opencl.queue.finish();
     auto t3 = clock_type::now();
     cl::copy(opencl.queue, d_result, begin(result), end(result));
@@ -198,22 +200,41 @@ kernel void matrix_times_vector(global float* a,
 kernel void matrix_times_matrix(global float* a,
                                 global float* b,
                                 global float* result, 
-				int n) {
-    const int i = get_global_id(0);
-    const int j = get_global_id(1);
+                                int n,
+                                local float* loc_block_A,
+                                local float* loc_block_B) {
+    int block_size = get_local_size(0);
 
-    local float loc_a[1024];
-    const int local_id = get_local_id(1);
-    loc_a[local_id] = a[i*n + local_id];
-    barrier(CLK_LOCAL_MEM_FENCE);
+    int b_x = get_group_id(0);
+    int b_y = get_group_id(1);
 
-    float sum = 0.0;
-    for (int column = 0; column < n; column++) {
-        //sum += row[column]*b[column*n + j];
-        sum += loc_a[column]*b[column*n + j];
+    int loc_x = get_local_id(0);
+    int loc_y = get_local_id(1);
+
+    int a_start = n * block_size * b_y;
+    int a_end   = a_start + n - 1;
+    int a_step  = block_size;
+
+    int b_start = block_size * b_x;
+    int b_step  = block_size * n;
+
+    float resultSub = 0.0f;
+
+    for (int i = a_start, j = b_start; i <= a_end; i += a_step, j += b_step) {
+        loc_block_A[loc_x + loc_y*block_size] = a[i + n*loc_y + loc_x];
+        loc_block_B[loc_x + loc_y*block_size] = b[j + n*loc_y + loc_x];
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        for (int k = 0; k < block_size; ++k) {
+            resultSub += loc_block_A[k + loc_y*block_size] * loc_block_B[loc_x + k*block_size];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
-    result[i*n + j] = sum;
+
+    result[get_global_id(1) * get_global_size(0) + get_global_id(0)] = resultSub;
 }
+
 )";
 
 int main() {
