@@ -113,7 +113,7 @@ void profile_matrix_times_vector(int n, OpenCL& opencl) {
     kernel.setArg(3, n);
 
     int wg_size = 128;
-    while (n % block_size != 0) {
+    while (n % wg_size != 0) {
        wg_size--;
     }
     kernel.setArg(4, wg_size*sizeof(float), NULL);
@@ -146,8 +146,9 @@ void profile_matrix_times_matrix(int n, OpenCL& opencl) {
     cl::Buffer d_b(opencl.queue, begin(b), end(b), true);
 
     cl::Buffer d_result(opencl.context, CL_MEM_WRITE_ONLY, result.size()*sizeof(float));
-    int block_size = 16;
-    while (n*n % block_size*block_size != 0) {
+    int block_size = 32;
+
+    while ((n*n) % (block_size*block_size) != 0) {
        block_size--;
     }
     std::cout << "BL_SIZE " << block_size << '\n'; 
@@ -178,7 +179,7 @@ void opencl_main(OpenCL& opencl) {
     print_column_names();
     profile_vector_times_vector(1024*1024*10, opencl);
     profile_matrix_times_vector(1024*10, opencl);
-    profile_matrix_times_matrix(1024-2, opencl);
+    profile_matrix_times_matrix(1024, opencl);
 }
 
 const std::string src = R"(
