@@ -106,11 +106,12 @@ void profile_matrix_times_vector(int n, OpenCL& opencl) {
     cl::Buffer d_a(opencl.queue, begin(a), end(a), true);
     cl::Buffer d_b(opencl.queue, begin(b), end(b), true);
     cl::Buffer d_result(opencl.context, CL_MEM_WRITE_ONLY, result.size()*sizeof(float));
-    
+    cl::Buffer d_loc(opencl.context, CL_MEM_WRITE_ONLY, result.size()*sizeof(float));
     kernel.setArg(0, d_a);
     kernel.setArg(1, d_b);
     kernel.setArg(2, d_result);
     kernel.setArg(3, n);
+    kernel.setArg(4, n*sizeof(float), NULL);
     opencl.queue.finish();
     auto t2 = clock_type::now();
     opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n), cl::NDRange(1024));
@@ -144,9 +145,10 @@ void profile_matrix_times_matrix(int n, OpenCL& opencl) {
     kernel.setArg(1, d_b);
     kernel.setArg(2, d_result);
     kernel.setArg(3, n);
+    kernel.setArg(4, n*sizeof(float), NULL);
     opencl.queue.finish();
     auto t2 = clock_type::now();
-    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n, n), cl::NDRange(1, 1024));
+    opencl.queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(n, n), cl::NDRange(1, n/10));
     opencl.queue.finish();
     auto t3 = clock_type::now();
     cl::copy(opencl.queue, d_result, begin(result), end(result));
@@ -163,8 +165,8 @@ void opencl_main(OpenCL& opencl) {
     using namespace std::chrono;
     print_column_names();
     profile_vector_times_vector(1024*1024*10, opencl);
-    profile_matrix_times_vector(1024*10, opencl);
-    profile_matrix_times_matrix(1024, opencl);
+    profile_matrix_times_vector(1024*11, opencl);
+    profile_matrix_times_matrix(1024+2, opencl);
 }
 
 const std::string src = R"(
@@ -178,12 +180,14 @@ kernel void vector_times_vector(global float* a,
 kernel void matrix_times_vector(global float* a,
                                 constant float* b,
                                 global float* result,
-			        int n) {
+			        int n,
+				local float* loc_b) {
     const int i = get_global_id(0);
+    const int loc_size = get_local_size(0);
 
-    local float loc_b[1024*10];
+    //local float loc_b[1024*10];
     const int local_id = get_local_id(0);
-    for (int k = local_id*(10); k < (local_id+1)*(10); k++) {
+    for (int k = 0; k < n; k++) {
          loc_b[k] = b[k];
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -198,13 +202,17 @@ kernel void matrix_times_vector(global float* a,
 kernel void matrix_times_matrix(global float* a,
                                 global float* b,
                                 global float* result, 
-				int n) {
+				int n,
+				local float* loc_a) {
     const int i = get_global_id(0);
     const int j = get_global_id(1);
-
-    local float loc_a[1024];
     const int local_id = get_local_id(1);
-    loc_a[local_id] = a[i*n + local_id];
+    //local float loc_a[1024];
+    if (local_id == 0) {
+      for (int k = 0; k < n; k++) {
+        loc_a[k] = a[i*n + k];
+      }
+    }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     float sum = 0.0;
